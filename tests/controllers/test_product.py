@@ -1,5 +1,6 @@
 from typing import List
-
+from store.core.exceptions import NotFoundException, InsertException
+from httpx import AsyncClient
 import pytest
 from tests.factories import product_data
 from fastapi import status
@@ -21,6 +22,18 @@ async def test_controller_create_should_return_success(client, products_url):
         "price": "8.500",
         "status": True,
     }
+
+
+async def test_create_product_insert_error(async_client: AsyncClient):
+    mock_product_in = {"name": "Test Product", "price": 99.99}
+
+    async def mock_create(body):
+        raise InsertException("Error during database insertion")
+
+    response = await async_client.post("/products/", json=mock_product_in)
+
+    assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+    assert response.json()["detail"] == "Error during database insertion"
 
 
 async def test_controller_get_should_return_success(
@@ -81,6 +94,20 @@ async def test_controller_patch_should_return_success(
         "price": "7.500",
         "status": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_update_product_not_found_error(async_client: AsyncClient):
+    mock_product_in = {"name": "Updated Product", "price": 109.99}
+    product_id = "non_existing_id"
+
+    async def mock_update(product_id, body):
+        raise NotFoundException(f"Product with id {product_id} not found")
+
+    response = await async_client.patch(f"/products/{product_id}", json=mock_product_in)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == f"Product with id {product_id} not found"
 
 
 async def test_controller_delete_should_return_no_content(
